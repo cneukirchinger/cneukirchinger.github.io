@@ -1,7 +1,7 @@
 ---
 layout: post
 title:  "Bloggen mit Jekyll und GitHub Pages"
-date:   2016-08-14 05:45:37 +0200
+date:   2016-08-14 07:00:00 +0200
 categories: jekyll github pages
 ---
 Um einen Blog zu betreiben gibt es viele verschiedene Möglichkeiten. Dabei reicht die Auswahl von selbstgeschriebenen statischen HTML-Seiten bis hin zu dynamischen Blogging-System (wie [Wordpress][wordpress], [Ghost][ghost] und viele mehr). Die Wahl des geeigneten Systems hängt von den persönlichen Ansprüchen und Anforderungen des eigenen Blogs. So kann es durchaus Sinn machen einen Blog, der nur in großen Intervallen geführt wird, statisch und einfach zu halten und dabei auf oft nicht benötigte dynamische Zusatzfunktionen zu verzichten.
@@ -23,6 +23,8 @@ jekyll new .
 Ich habe mich bewusst für die Methode entschieden, das Verzeichnis vorher selbst zu erstellen und den Blog über `jekyll new .` zu erzeugen, da ich meinen Blog in einem geklonten Git-Projekt ablege.
 
 Mit `jekyll serve` werden die HTML-Seiten erzeugt und mit Hilfe eines internen Webservers auf `localhost:4000` veröffentlicht. Ist man fertig mit der Anpassung der entsprechenden Konfigurationsdateien und hat eigene Blog Einträge erstellt, kann die Seite veröffentlicht werden. Ich habe diesen Blog auf GitHub Pages gestellt.
+
+GitHub Pages unterstützt Jekyll direkt. Das heisst es müssen die generierten Webseiten im `_sites`-Verzeichnis nicht hochgeladen werden. Die Quelldateien werden von GitHub Pages selbst übersetzt. Das hat aber auch den Nachteil, dass keine eigenen Plugins für Jekyll verwendet werden können. Alternativ kann man hier das `_sites`-Verzeichnis direkt auf Github Pages hochladen, nachdem man lokal das Plugin nutzt und die Webseiten selbst erzeugt hat.
 
 [ghost]: https://ghost.org
 [hyde]: https://hyde.github.io
