@@ -3,6 +3,8 @@ layout: post
 title:  "Bloggen mit Jekyll und GitHub Pages"
 date:   2016-08-14 07:00:00 +0200
 categories: jekyll github pages
+comments: true
+author: "Christian"
 ---
 Um einen Blog zu betreiben gibt es viele verschiedene Möglichkeiten. Dabei reicht die Auswahl von selbstgeschriebenen statischen HTML-Seiten bis hin zu dynamischen Blogging-System (wie [Wordpress][wordpress], [Ghost][ghost] und viele mehr). Die Wahl des geeigneten Systems hängt von den persönlichen Ansprüchen und Anforderungen des eigenen Blogs. So kann es durchaus Sinn machen einen Blog, der nur in großen Intervallen geführt wird, statisch und einfach zu halten und dabei auf oft nicht benötigte dynamische Zusatzfunktionen zu verzichten.
 
