@@ -11,9 +11,10 @@ email: christian.neukirchinger@gmail.com
 description: > # this means to ignore newlines until "baseurl:"
   Notizen aus dem Alltag auf der Reise zum besseren Programmierer
 baseurl: "" # the subpath of your site, e.g. /blog
-url: "http://cneukirchinger.github.io" # the base hostname & protocol for your site
+url: "https://cneukirchinger.github.io" # the base hostname & protocol for your site
 twitter_username: cneukic
 github_username:  cneukirchinger
+permalink: "/:year/:month/:title"
 
 # Build settings
 markdown: kramdown
