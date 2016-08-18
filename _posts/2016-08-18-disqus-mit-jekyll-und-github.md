@@ -1,7 +1,7 @@
 ---
 layout: post
 title:  "Disqus mit Jekyll und Github Pages"
-date:   2016-08-14 07:00:00 +0200
+date:   2016-08-18 07:00:00 +0200
 categories: jekyll github pages disqus
 comments: true
 author: "Christian"
