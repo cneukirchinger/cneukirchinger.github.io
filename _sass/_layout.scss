@@ -239,4 +239,27 @@
             font-size: 18px;
         }
     }
+    table {
+      border-collapse: collapse;
+      margin-bottom: 1em;
+      margin-left: auto;
+      margin-right: auto;
+      td, th {
+        padding: 5px;
+      }
+      tr {
+
+      }
+      thead {
+        border-bottom: 1px solid black;
+        border-top: 1px solid black;
+      }
+      tbody {
+
+        tr:nth-of-type(odd) {
+          background-color: $grey-color-light
+        }
+      }
+
+    }
 }
