@@ -1,7 +1,7 @@
 ---
 layout: post
 title:  "SQL Snippets"
-date:   2016-08-20 07:00:00 +0200
+date:   2016-10-20 07:00:00 +0200
 categories: sql sqlite
 comments: true
 author: "Christian"
