@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Frostwerk – Der Instandhalter</title>
+  <meta name="description" content="Ein Instandhalter-Abenteuer in der Eisfabrik – präsentiert von Grollmus.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="stage">
+    <canvas id="game" width="1280" height="720"></canvas>
+
+    <div id="hud">
+      <div class="brand">FROSTWERK<small>Eisfabrik · Linie 1</small></div>
+      <div class="stat"><label>Budget</label><b id="h-money">–</b></div>
+      <div class="stat"><label>Eis produziert</label><b id="h-prod">–</b></div>
+      <div class="stat"><label>Verfügbarkeit</label><b id="h-avail">–</b></div>
+      <div class="stat"><label>Schichtzeit</label><b id="h-time">–</b></div>
+      <div class="stat"><label>Rang</label><b id="h-rank">–</b></div>
+      <div class="stat" title="Offener Budgetvorschuss der Werkleitung"><label>Vorschuss</label><b id="h-adv">–</b></div>
+      <div class="sponsor">Sponsored by <span class="glogo">GROLLMUS</span></div>
+    </div>
+
+    <div id="skills"></div>
+    <div id="toasts"></div>
+    <div id="modal" class="hidden"></div>
+    <div id="screen"></div>
+  </div>
+  <script src="game.js"></script>
+</body>
+</html>

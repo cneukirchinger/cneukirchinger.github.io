@@ -1,0 +1,81 @@
+# Site-Einstellungen
+title: "Blog und Projekte"
+description: "Blog und Projekte"
+url: "https://cneukirchinger.github.io"
+baseurl: ""
+locale: "de-DE"
+repository: "cneukirchinger/cneukirchinger.github.io"
+
+# Theme: Minimal Mistakes (https://mmistakes.github.io/minimal-mistakes/)
+remote_theme: "mmistakes/minimal-mistakes@4.26.2"
+minimal_mistakes_skin: "air"
+search: true
+
+author:
+  name: "Christian Neukirchinger"
+  bio: "Blog und kleine Projekte"
+  links:
+    - label: "GitHub"
+      icon: "fab fa-fw fa-github"
+      url: "https://github.com/cneukirchinger"
+
+footer:
+  links:
+    - label: "GitHub"
+      icon: "fab fa-fw fa-github"
+      url: "https://github.com/cneukirchinger"
+
+# Build
+markdown: kramdown
+permalink: /blog/:year/:title/
+timezone: Europe/Berlin
+include: ["_pages"]
+exclude: ["README.md", "apps/*/README.md", "Gemfile", "Gemfile.lock", "vendor", ".bundle"]
+
+plugins:
+  - jekyll-remote-theme
+  - jekyll-paginate
+  - jekyll-sitemap
+  - jekyll-feed
+  - jekyll-include-cache
+  - jekyll-redirect-from
+
+paginate: 5
+paginate_path: /seite:num/
+
+collections:
+  projects:
+    output: true
+    permalink: /:collection/:path/
+
+category_archive:
+  type: liquid
+  path: /kategorien/
+tag_archive:
+  type: liquid
+  path: /tags/
+
+defaults:
+  - scope:
+      path: ""
+      type: posts
+    values:
+      layout: single
+      author_profile: true
+      read_time: true
+      share: false
+      related: true
+      show_date: true
+  - scope:
+      path: ""
+      type: pages
+    values:
+      layout: single
+      author_profile: true
+  - scope:
+      path: ""
+      type: projects
+    values:
+      layout: single
+      author_profile: false
+      share: false

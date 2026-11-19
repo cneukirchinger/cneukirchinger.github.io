@@ -1,0 +1,9 @@
+main:
+  - title: "Blog"
+    url: /
+  - title: "Projekte"
+    url: /projekte/
+  - title: "Archiv"
+    url: /archiv/
+  - title: "Über mich"
+    url: /about/

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 300" width="500" height="300">
+  <rect width="500" height="300" fill="#fdf8f0"/>
+  <g font-family="system-ui, sans-serif" font-weight="700" font-size="22" text-anchor="middle" fill="#2d2a3e">
+    <g transform="translate(40,95)">
+      <rect x="0"   width="44" height="44" rx="8" fill="#f9c6d0"/><text x="22"  y="30">A</text>
+      <rect x="52"  width="44" height="44" rx="8" fill="#fde2b0"/><text x="74"  y="30">S</text>
+      <rect x="104" width="44" height="44" rx="8" fill="#c9efc0"/><text x="126" y="30">D</text>
+      <rect x="156" width="44" height="44" rx="8" fill="#bfe2f5"/><text x="178" y="30">F</text>
+      <rect x="220" width="44" height="44" rx="8" fill="#bfe2f5"/><text x="242" y="30">J</text>
+      <rect x="272" width="44" height="44" rx="8" fill="#c9efc0"/><text x="294" y="30">K</text>
+      <rect x="324" width="44" height="44" rx="8" fill="#fde2b0"/><text x="346" y="30">L</text>
+      <rect x="376" width="44" height="44" rx="8" fill="#f9c6d0"/><text x="398" y="30">Ö</text>
+    </g>
+    <rect x="120" y="155" width="260" height="36" rx="8" fill="#e4e1ee"/>
+  </g>
+  <text x="250" y="245" font-family="system-ui, sans-serif" font-size="30" font-weight="700" text-anchor="middle" fill="#6c5ce7">Tipptrainer</text>
+</svg>
