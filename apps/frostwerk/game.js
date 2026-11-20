@@ -103,10 +103,14 @@ const MACHINES = [
   { name: 'Abfüllung',       kind: 'filler',  techs: ['pn', 'drv', 'hmi'], maker: 'Kegel Abfülltechnik' },
   { name: 'Härtetunnel',     kind: 'tunnel',  techs: ['pn', 'sec'], maker: 'Polarwerk' },
 ].map((m, i) => ({ ...m, x: 220 + i * 148, y: LINE_Y, w: MW, h: MH }));
-MACHINES.push({ name: 'Leitstand / SCADA', kind: 'scada', techs: ['sec', 'hmi', 'pn', 'sps'], maker: 'Leitwerk Systemhaus', x: 560, y: 452, w: 180, h: 96 });
+MACHINES.push({ name: 'Leitstand / SCADA', kind: 'scada', techs: ['sec', 'hmi', 'pn', 'sps'], maker: 'Leitwerk Systemhaus', x: 650, y: 452, w: 180, h: 96 });
 
-const TERMINAL = { x: 46, y: 470, w: 104, h: 48, name: 'Grollmus Akademie' };
-const COFFEE   = { x: 186, y: 470, w: 46, h: 48, name: 'Kaffeeautomat' };
+// Instandhaltungsbüro (Akademie-Terminal, Kaffee, Regal). Bewusst nicht ganz links unten:
+// Dort liegt auf Touch-Geräten der virtuelle Joystick und würde das Büro verdecken.
+const OFFICE_X = 320, OFFICE_W = 250;
+const TERMINAL = { x: OFFICE_X + 26, y: 470, w: 104, h: 48, name: 'Grollmus Akademie' };
+const COFFEE   = { x: OFFICE_X + 166, y: 470, w: 46, h: 48, name: 'Kaffeeautomat' };
+const START_POS = { x: OFFICE_X + 120, y: 610 };
 const BOARD    = { x: 960, y: 520, w: 280, h: 170, name: 'Sponsor' };
 const BOSS     = { x: 50, y: 150, w: 120, h: 92, name: 'Werkleitung' };
 const OBSTACLES = [...MACHINES, TERMINAL, COFFEE, BOARD, BOSS];
@@ -183,7 +187,7 @@ const SFX = {
 // Spielzustand
 // ---------------------------------------------------------------------
 let G = null;
-const player = { x: 140, y: 610, r: 15, face: 1, walk: 0, moving: false, target: null, stuck: 0 };
+const player = { x: START_POS.x, y: START_POS.y, r: 15, face: 1, walk: 0, moving: false, target: null, stuck: 0 };
 const particles = [], floats = [];
 let playerName = store.get('frostwerk-name') || 'Instandhalter';
 
@@ -201,7 +205,7 @@ function newGame() {
     rank: 'Azubi', hudT: 0,
   };
   MACHINES.forEach(m => { m.fault = null; m.remote = 0; m.remoteMax = 0; m.restart = 0; m.anim = 0; });
-  Object.assign(player, { x: 140, y: 610, face: 1, walk: 0, target: null, stuck: 0 });
+  Object.assign(player, { x: START_POS.x, y: START_POS.y, face: 1, walk: 0, target: null, stuck: 0 });
   particles.length = 0; floats.length = 0; toastsEl.innerHTML = '';
   renderSkills();
 }
@@ -317,7 +321,9 @@ const joy = { id: null, x0: 0, y0: 0, x: 0, y: 0, t0: 0, moved: false };
 const joyEl = $('#joy'), knobEl = $('#joy-knob'), touchEl = $('#touch'), actBtn = $('#t-act');
 const JOY_R = 56;
 touchEl.addEventListener('pointerdown', e => {
-  if (e.target.closest('button') || joy.id !== null) return;
+  if (e.target.closest('button')) return;
+  if (hitsPause(e.clientX, e.clientY)) { e.preventDefault(); touchPause(); return; }
+  if (joy.id !== null) return;
   e.preventDefault();
   joy.id = e.pointerId; joy.x0 = e.clientX; joy.y0 = e.clientY; joy.x = joy.y = 0; joy.t0 = performance.now(); joy.moved = false;
   try { touchEl.setPointerCapture(e.pointerId); } catch { /* ignore */ }
@@ -344,7 +350,19 @@ function joyEnd(e) {
 touchEl.addEventListener('pointerup', joyEnd);
 touchEl.addEventListener('pointercancel', joyEnd);
 actBtn.addEventListener('pointerdown', e => { e.preventDefault(); onKey('e'); });
-$('#t-pause').addEventListener('pointerdown', e => { e.preventDefault(); if (G) setPause(G.mode === 'walk'); });
+// Der Pause-Button sitzt in der Oberleiste (unter der Touch-Ebene). Treffer werden daher hier geprüft –
+// mit großzügiger Tippfläche, die nach unten über die (nicht bedienbare) Skill-Leiste reicht.
+const pauseBtn = $('#t-pause');
+function hitsPause(cx, cy) {
+  const r = pauseBtn.getBoundingClientRect();
+  if (!r.width) return false;
+  return cx >= r.left - 16 && cx <= r.right + 16 && cy >= r.top - 12 && cy <= r.bottom + Math.max(16, r.height);
+}
+function touchPause() {
+  if (!G) return;
+  if (G.mode === 'online') pauseOnline();
+  setPause(true);
+}
 
 // Hochformat auf Touch-Geräten: Spiel pausieren (Hinweis "Gerät drehen" kommt per CSS)
 const portraitMq = matchMedia('(orientation: portrait) and (pointer: coarse)');
@@ -773,7 +791,7 @@ function updatePresence(dt) {
   if (p.t >= CFG.presenceDuration) {
     screenEl.className = 'hidden'; screenEl.innerHTML = '';
     G.presence = null; G.mode = 'walk';
-    Object.assign(player, { x: 140, y: 610 });
+    Object.assign(player, { x: START_POS.x, y: START_POS.y });
     levelUp(p.tech, p.gain, 'Präsenzschulung');
   }
 }
@@ -1052,16 +1070,17 @@ function drawFloor() {
 }
 
 function drawOffice() {
-  rr(20, 440, 250, 270, 6, '#2e3f52', '#4d6580', 2);
+  const x = OFFICE_X;
+  rr(x, 440, OFFICE_W, 270, 6, '#2e3f52', '#4d6580', 2);
   ctx.fillStyle = '#ffffff08';
-  for (let i = 0; i < 12; i++) ctx.fillRect(20, 440 + i * 22, 250, 11);
-  text('INSTANDHALTUNG', 145, 694, 11, '#9fb6cf', 'center', '800');
+  for (let i = 0; i < 12; i++) ctx.fillRect(x, 440 + i * 22, OFFICE_W, 11);
+  text('INSTANDHALTUNG', x + OFFICE_W / 2, 694, 11, '#9fb6cf', 'center', '800');
   // Regal mit Ersatzteilen
-  rr(230, 560, 34, 120, 3, '#5a4632');
-  for (let i = 0; i < 4; i++) { ctx.fillStyle = ['#e57373', '#64b5f6', '#ffd54f', '#81c784'][i]; ctx.fillRect(235, 568 + i * 28, 24, 14); }
+  rr(x + 210, 560, 34, 120, 3, '#5a4632');
+  for (let i = 0; i < 4; i++) { ctx.fillStyle = ['#e57373', '#64b5f6', '#ffd54f', '#81c784'][i]; ctx.fillRect(x + 215, 568 + i * 28, 24, 14); }
   // Pflanze
-  ctx.fillStyle = '#795548'; ctx.fillRect(32, 660, 18, 18);
-  ctx.fillStyle = '#4caf50'; ctx.beginPath(); ctx.arc(41, 652, 13, 0, 7); ctx.fill();
+  ctx.fillStyle = '#795548'; ctx.fillRect(x + 12, 660, 18, 18);
+  ctx.fillStyle = '#4caf50'; ctx.beginPath(); ctx.arc(x + 21, 652, 13, 0, 7); ctx.fill();
 }
 
 function drawTerminal(t) {
@@ -1451,7 +1470,7 @@ function startGame() {
   screenEl.className = 'hidden'; screenEl.innerHTML = '';
   newGame();
   renderHud();
-  toast('Schichtbeginn! Halte die Linie am Laufen. Das <span class="g">GROLLMUS</span> Akademie-Terminal steht im Büro links unten.', 'tip', 6);
+  toast('Schichtbeginn! Halte die Linie am Laufen. Das <span class="g">GROLLMUS</span> Akademie-Terminal steht im Instandhaltungsbüro unten.', 'tip', 6);
 }
 
 // Auf Mobilgeräten Vollbild + Querformat anfordern (wo unterstützt; iOS-Safari ignoriert das still)

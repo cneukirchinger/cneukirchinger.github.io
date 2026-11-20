@@ -321,10 +321,16 @@ body.touch[data-mode="walk"] #touch, body.touch[data-mode="online"] #touch { dis
 #t-act.ready { opacity: 1; border-color: #ffd000; box-shadow: 0 0 18px #ffd00088; background: #3a2f0acc; animation: pulse 1s ease-in-out infinite; }
 body[data-mode="online"] #t-act { opacity: 1; font-size: 30px; }
 @keyframes pulse { 50% { transform: scale(1.07); } }
+/* Pause-Button sitzt in der Oberleiste (skaliert mit der Bühne) und überlagert so nie Spielinhalte.
+   Die Tippfläche wird in game.js (hitsPause) erweitert, da die Touch-Ebene darüber liegt. */
 #t-pause {
-  width: 48px; height: 48px; font-size: 16px; letter-spacing: -2px;
-  right: calc(env(safe-area-inset-right, 0px) + 10px); top: calc(env(safe-area-inset-top, 0px) + 10px);
+  display: none; position: relative; flex: none; padding: 0; width: 44px; height: 34px; min-height: 0;
+  font-size: 14px; letter-spacing: -2px; border-radius: 6px; background: #1e2735; border: 1px solid #ffffff40; color: #fff;
+  touch-action: none;
 }
+body.touch[data-mode="walk"] #t-pause, body.touch[data-mode="online"] #t-pause { display: flex; align-items: center; justify-content: center; }
+body.compact #t-pause { width: 78px; height: 48px; font-size: 24px; border-width: 2px; }
+
 
 /* Hinweise je nach Eingabegerät */
 body:not(.touch) .t-only { display: none; }
