@@ -22,6 +22,11 @@ html, body {
   font-family: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
   overflow: hidden;
   user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+  touch-action: none;
 }
 
 #stage {
@@ -35,6 +40,12 @@ html, body {
 }
 
 canvas { display: block; }
+
+/* ---------- UI-Ebene (Dialoge, Bildschirme, Toasts) ----------
+   Liegt außerhalb der skalierten Bühne. Auf großen Displays deckt sie die Bühne exakt ab,
+   auf kleinen (Smartphone) den ganzen Viewport – so bleiben Texte und Buttons lesbar. */
+#ui { position: fixed; left: 0; top: 0; overflow: hidden; pointer-events: none; z-index: 20; }
+#uiz { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 
 /* ---------- HUD ---------- */
 #hud {
@@ -79,7 +90,7 @@ canvas { display: block; }
 
 /* ---------- Toasts ---------- */
 #toasts {
-  position: absolute; bottom: 10px; left: 615px; transform: translateX(-50%);
+  position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); max-width: 92%;
   display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px; pointer-events: none; width: 660px;
 }
 .toast {
@@ -96,7 +107,7 @@ canvas { display: block; }
 
 /* ---------- Modal ---------- */
 #modal {
-  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: auto; touch-action: pan-y;
   background: rgba(5,8,12,.55); backdrop-filter: blur(2px);
 }
 #modal.hidden, #screen.hidden { display: none; }
@@ -105,6 +116,7 @@ canvas { display: block; }
 .panel {
   background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
   padding: 20px 24px; width: 700px; box-shadow: 0 20px 60px rgba(0,0,0,.6);
+  max-width: calc(100% - 16px); max-height: calc(100% - 16px); overflow-y: auto; overscroll-behavior: contain;
 }
 .panel h2 { margin: 0 0 6px; font-size: 20px; }
 .ph { display: flex; align-items: center; gap: 10px; font-size: 18px; margin-bottom: 10px; }
@@ -122,6 +134,7 @@ button {
   font: inherit; font-size: 14px; color: var(--text); cursor: pointer;
   background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 9px 14px;
   transition: background .15s, transform .05s;
+  touch-action: manipulation;
 }
 button:hover:not(:disabled) { background: #283447; }
 button:active:not(:disabled) { transform: translateY(1px); }
@@ -138,14 +151,22 @@ kbd { font-family: inherit; font-size: 10px; background: #0005; border: 1px soli
 .alead { color: var(--muted); font-size: 13px; margin: 6px 0 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .alead div { background: #0f151e; border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; }
 .alead b { color: var(--text); }
+/* Feste Spaltenbreiten: Ein eingeblendeter Praxisrabatt darf das Layout nicht verschieben. */
 .trow {
-  display: grid; grid-template-columns: 200px 140px 1fr 230px 230px; gap: 10px; align-items: center;
+  display: grid; grid-template-columns: minmax(0, 1fr) 230px 230px; gap: 10px; align-items: center;
   padding: 7px 10px; border-radius: 6px; border-left: 4px solid var(--c); background: #121923; margin-bottom: 6px; font-size: 13px;
 }
-.trow .tn { font-weight: 700; }
-.trow .disc { color: var(--good); font-size: 11px; }
-.trow button { font-size: 12px; padding: 7px 8px; width: 100%; }
-.afoot { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; color: var(--muted); font-size: 12px; }
+.tinfo { min-width: 0; display: grid; grid-template-columns: 170px minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 10px; align-items: center; }
+.trow .tn { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tinfo .pips { grid-column: 2; grid-row: 1; margin-top: 0; }
+.trow .disc { grid-column: 1 / -1; color: var(--good); font-size: 11px; line-height: 14px; height: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.trow button { font-size: 12px; padding: 5px 8px; width: 100%; min-width: 0; display: flex; flex-direction: column; align-items: center; line-height: 1.25; }
+.trow button b, .trow button small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.trow button b { font-weight: 600; }
+.trow button small { font-size: 11px; opacity: .85; }
+.afoot { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 12px; color: var(--muted); font-size: 12px; }
+.afoot > span { flex: 1; min-width: 0; min-height: 2.9em; line-height: 1.45; }
+.afoot > button { flex: none; }
 
 /* Minigames */
 .mg { width: 620px; }
@@ -168,6 +189,10 @@ kbd { font-family: inherit; font-size: 10px; background: #0005; border: 1px soli
 .seq span.cur { border-color: var(--c); color: var(--text); box-shadow: 0 0 10px var(--c); }
 .seq span.done { background: var(--good); color: #071018; border-color: var(--good); }
 .seq.stun span { border-color: var(--bad); }
+.mgtouch { display: none; gap: 10px; justify-content: center; margin: 14px 0 4px; }
+.mgtouch button { font-size: 26px; min-width: 72px; height: 64px; padding: 0 14px; touch-action: none; }
+.mgtouch button.hit { font-size: 20px; font-weight: 800; min-width: 220px; }
+.mgtouch button[data-a] { font-size: 15px; }
 .timer { height: 6px; background: #0b1017; border-radius: 3px; overflow: hidden; }
 .timer div { height: 100%; background: var(--warn); }
 .shake { animation: shake .3s; }
@@ -175,11 +200,12 @@ kbd { font-family: inherit; font-size: 10px; background: #0005; border: 1px soli
 
 /* ---------- Screens ---------- */
 #screen {
-  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  position: absolute; inset: 0; display: flex; align-items: safe center; justify-content: center;
+  pointer-events: auto; overflow-y: auto; touch-action: pan-y; overscroll-behavior: contain; padding: 8px;
   background: radial-gradient(ellipse at 50% 30%, #18304f, #0a0f16 70%);
   z-index: 10;
 }
-.title { text-align: center; width: 900px; }
+.title { text-align: center; width: 900px; max-width: 100%; }
 .title .pre { color: var(--grollmus2); letter-spacing: 4px; font-size: 13px; text-transform: uppercase; }
 .title h1 {
   font-size: 84px; margin: 6px 0 0; letter-spacing: 10px; font-weight: 900;
@@ -203,7 +229,7 @@ kbd { font-family: inherit; font-size: 10px; background: #0005; border: 1px soli
 .best { color: var(--muted); font-size: 12px; margin-top: 8px; }
 
 /* Präsenz-Szene */
-.seminar { width: 760px; text-align: center; }
+.seminar { width: 760px; max-width: 100%; text-align: center; }
 .classroom {
   height: 250px; border-radius: 10px; border: 1px solid var(--line); position: relative; overflow: hidden;
   background: linear-gradient(#26364a, #1a2533 65%, #3a2f25 65%);
@@ -226,7 +252,7 @@ kbd { font-family: inherit; font-size: 10px; background: #0005; border: 1px soli
 .semprog div { height: 100%; background: linear-gradient(90deg, var(--grollmus), var(--grollmus2)); }
 
 /* Zertifikat */
-.endwrap { width: 980px; display: grid; grid-template-columns: 1.25fr 1fr; gap: 20px; align-items: stretch; }
+.endwrap { width: 980px; max-width: 100%; display: grid; grid-template-columns: 1.25fr 1fr; gap: 20px; align-items: stretch; }
 .cert {
   background: #fbf8f0; color: #1d2633; border-radius: 6px; padding: 26px 30px; position: relative;
   border: 10px double #c9a74a; box-shadow: 0 20px 60px rgba(0,0,0,.6);
@@ -269,3 +295,94 @@ kbd { font-family: inherit; font-size: 10px; background: #0005; border: 1px soli
 .verdict { border-radius: 6px; padding: 10px 12px; font-size: 14px; margin-bottom: 4px; }
 .verdict.good { background: #1b3a1f; border: 1px solid #4caf50; }
 .verdict.bad { background: #3a1b1b; border: 1px solid #ef5350; }
+
+/* ---------- Touch-Steuerung ---------- */
+#touch { display: none; position: fixed; inset: 0; z-index: 10; touch-action: none; }
+body.touch[data-mode="walk"] #touch, body.touch[data-mode="online"] #touch { display: block; }
+#joy {
+  position: absolute; width: 130px; height: 130px; border-radius: 50%;
+  left: calc(env(safe-area-inset-left, 0px) + 24px); bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
+  background: radial-gradient(#ffffff10, #ffffff22); border: 2px solid #ffffff40; opacity: .4; pointer-events: none;
+}
+#joy.active { opacity: .9; bottom: auto; margin: -65px 0 0 -65px; }
+#joy-knob {
+  position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #8fd3ff, var(--grollmus)); box-shadow: 0 2px 12px #0008;
+}
+#touch button {
+  position: absolute; border-radius: 50%; padding: 0; display: flex; align-items: center; justify-content: center;
+  background: #161d27cc; border: 2px solid #ffffff40; color: #fff; touch-action: none;
+}
+#t-act {
+  width: 88px; height: 88px; font-size: 38px;
+  right: calc(env(safe-area-inset-right, 0px) + 22px); bottom: calc(env(safe-area-inset-bottom, 0px) + 22px);
+  opacity: .55;
+}
+#t-act.ready { opacity: 1; border-color: #ffd000; box-shadow: 0 0 18px #ffd00088; background: #3a2f0acc; animation: pulse 1s ease-in-out infinite; }
+body[data-mode="online"] #t-act { opacity: 1; font-size: 30px; }
+@keyframes pulse { 50% { transform: scale(1.07); } }
+#t-pause {
+  width: 48px; height: 48px; font-size: 16px; letter-spacing: -2px;
+  right: calc(env(safe-area-inset-right, 0px) + 10px); top: calc(env(safe-area-inset-top, 0px) + 10px);
+}
+
+/* Hinweise je nach Eingabegerät */
+body:not(.touch) .t-only { display: none; }
+body.touch .k-only, body.touch kbd { display: none; }
+body.touch .mgtouch { display: flex; }
+body.touch button { min-height: 42px; }
+body.touch .trow button { min-height: 0; }
+
+/* Hochformat auf Touch-Geräten: Bitte drehen */
+#rotate {
+  display: none; position: fixed; inset: 0; z-index: 100; background: #0a0f16;
+  align-items: center; justify-content: center; text-align: center; color: var(--text); font-size: 18px; padding: 24px;
+}
+#rotate .ri { font-size: 64px; margin-bottom: 12px; animation: rot 2s ease-in-out infinite; }
+@keyframes rot { 0%, 30% { transform: rotate(0); } 60%, 100% { transform: rotate(-90deg); } }
+@media (orientation: portrait) and (pointer: coarse) { #rotate { display: flex; } }
+
+/* ---------- Kompaktmodus (kleine Displays, v. a. Smartphones quer) ----------
+   Die Bühne wird stark verkleinert, daher HUD und Skill-Leiste innerhalb der Bühne vergrößern. */
+body.compact #stage { border-radius: 0; box-shadow: none; }
+body.compact #hud { height: 58px; gap: 20px; padding: 0 16px; }
+body.compact .brand { display: none; }
+body.compact .stat label { font-size: 15px; letter-spacing: .5px; }
+body.compact .stat b { font-size: 25px; }
+body.compact .sponsor { font-size: 0; gap: 0; }
+body.compact .sponsor .glogo { font-size: 20px; }
+body.compact #skills { top: 62px; height: 56px; gap: 6px; }
+body.compact .skill { padding: 3px 8px; font-size: 21px; border-left-width: 6px; }
+body.compact .skill .n { line-height: 1.1; }
+body.compact .skill .n span { font-size: 18px; }
+body.compact .skill .pip { width: 22px; height: 12px; }
+body.compact .skill .pips { margin-top: 3px; }
+body.compact .skill .sub { font-size: 15px; bottom: 3px; }
+.skill .nm-s { display: none; }
+body.compact .skill .nm-l { display: none; }
+body.compact .skill .nm-s { display: inline; }
+body.compact .skill .n .nm-s { color: inherit; font-size: inherit; font-weight: 700; }
+
+/* Dialoge im Kompaktmodus */
+body.compact .panel { padding: 14px 16px; }
+body.compact .academy .alead { font-size: 12px; margin: 4px 0 10px; }
+body.compact .trow { grid-template-columns: minmax(0, 1fr) 180px 180px; }
+body.compact .tinfo { grid-template-columns: minmax(0, 1fr) auto; }
+body.compact .trow { padding: 5px 10px; margin-bottom: 5px; }
+body.compact .afoot { position: sticky; bottom: -14px; margin: 8px -16px -14px; padding: 8px 16px; background: var(--panel); border-top: 1px solid var(--line); }
+body.compact .ftext { font-size: 15px; }
+body.compact #toasts { width: 60%; bottom: calc(env(safe-area-inset-bottom, 0px) + 8px); }
+body.compact .toast { font-size: 12px; padding: 6px 10px; }
+body.compact .title h1 { font-size: 52px; letter-spacing: 6px; }
+body.compact .title h3 { margin-bottom: 10px; }
+body.compact .story { font-size: 13px; line-height: 1.45; padding: 10px 14px; }
+body.compact .controls { margin: 10px 0; }
+body.compact .presented { margin-top: 14px; }
+body.compact .classroom { height: 210px; }
+body.compact .endwrap { gap: 12px; }
+body.compact .cert { padding: 16px 18px; border-width: 6px; }
+body.compact .cert h1 { font-size: 26px; margin-top: 8px; }
+body.compact .cert .who { font-size: 22px; margin: 8px 0 6px; }
+body.compact .seal { width: 64px; height: 64px; font-size: 8px; right: 14px; bottom: 14px; }
+body.compact .sgrid { font-size: 13px; gap: 3px 10px; margin: 8px 0; }
+body.compact .stars { font-size: 26px; }

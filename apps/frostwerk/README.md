@@ -23,6 +23,21 @@ python3 -m http.server 8000   # dann http://localhost:8000
 | 1 – 3 | Fachgespräch: Antwort wählen |
 | Esc | Dialog schließen / Minispiel abbrechen / Pause |
 | P · M | Pause · Ton an/aus |
+| Mausklick in die Halle | Hinlaufen, bei Objekten automatisch interagieren |
+
+### Smartphone & Tablet
+
+Das Spiel läuft im Querformat (im Hochformat erscheint ein Hinweis zum Drehen). Beim Start wird – wo vom Browser unterstützt – in den Vollbildmodus gewechselt.
+
+| Geste | Aktion |
+|---|---|
+| Daumen auf die Halle legen und ziehen | Bewegen (virtueller Joystick) |
+| Objekt oder Stelle antippen | Hinlaufen, bei Objekten automatisch interagieren |
+| ✋-Button unten rechts | Interagieren / Online-Kurs pausieren |
+| ❚❚-Button oben rechts | Pause |
+| Buttons im Minispiel | „Jetzt!“ (Timing) bzw. Pfeil-Buttons (Code-Sequenz) |
+
+Auf kleinen Displays werden HUD, Skill-Leiste und Dialoge automatisch vergrößert dargestellt.
 
 ## Spielprinzip
 

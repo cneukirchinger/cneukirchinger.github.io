@@ -129,19 +129,36 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch { /* ignore */ } },
 };
 
+// Bühne (Canvas + HUD) wird als Ganzes skaliert. Die UI-Ebene (Dialoge, Bildschirme, Toasts) liegt separat darüber:
+// Auf großen Displays deckt sie die Bühne exakt ab (gleiche Skalierung), auf kleinen Displays den ganzen Viewport
+// mit einer eigenen, lesbaren Skalierung – Dialoge werden dort nicht mit der Bühne winzig.
+const ui = $('#ui'), uiz = $('#uiz');
+const COMPACT_BELOW = 0.75;
 function fit() {
-  const s = Math.min(innerWidth / W, innerHeight / H);
+  const iw = innerWidth, ih = innerHeight;
+  const s = Math.min(iw / W, ih / H), sl = (iw - W * s) / 2, st = (ih - H * s) / 2;
   stage.style.transform = `scale(${s})`;
-  stage.style.left = ((innerWidth - W * s) / 2) + 'px';
-  stage.style.top = ((innerHeight - H * s) / 2) + 'px';
+  stage.style.left = sl + 'px';
+  stage.style.top = st + 'px';
+  const compact = s < COMPACT_BELOW;
+  document.body.classList.toggle('compact', compact);
+  const r = compact ? { l: 0, t: 0, w: iw, h: ih } : { l: sl, t: st, w: W * s, h: H * s };
+  const z = compact ? clamp(Math.min(iw / 760, ih / 420), 0.6, 1.1) : s;
+  Object.assign(ui.style, { left: r.l + 'px', top: r.t + 'px', width: r.w + 'px', height: r.h + 'px' });
+  Object.assign(uiz.style, { width: (r.w / z) + 'px', height: (r.h / z) + 'px', transform: `scale(${z})` });
 }
-addEventListener('resize', fit); fit();
+addEventListener('resize', fit);
+addEventListener('orientationchange', () => setTimeout(fit, 150));
+fit();
 
 // ---------------------------------------------------------------------
 // Sound (WebAudio, prozedural)
 // ---------------------------------------------------------------------
 let actx = null, muted = store.get('frostwerk-muted') === '1';
-function audioInit() { if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch { /* kein Audio */ } } }
+function audioInit() {
+  if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch { /* kein Audio */ } }
+  if (actx && actx.state === 'suspended') actx.resume().catch(() => {});   // iOS/Android: erst nach Nutzergeste
+}
 function tone(freq, dur = 0.12, type = 'square', vol = 0.05, delay = 0, slide = 0) {
   if (!actx || muted) return;
   const t0 = actx.currentTime + delay, o = actx.createOscillator(), g = actx.createGain();
@@ -166,7 +183,7 @@ const SFX = {
 // Spielzustand
 // ---------------------------------------------------------------------
 let G = null;
-const player = { x: 140, y: 610, r: 15, face: 1, walk: 0, moving: false };
+const player = { x: 140, y: 610, r: 15, face: 1, walk: 0, moving: false, target: null, stuck: 0 };
 const particles = [], floats = [];
 let playerName = store.get('frostwerk-name') || 'Instandhalter';
 
@@ -184,7 +201,7 @@ function newGame() {
     rank: 'Azubi', hudT: 0,
   };
   MACHINES.forEach(m => { m.fault = null; m.remote = 0; m.remoteMax = 0; m.restart = 0; m.anim = 0; });
-  Object.assign(player, { x: 140, y: 610, face: 1, walk: 0 });
+  Object.assign(player, { x: 140, y: 610, face: 1, walk: 0, target: null, stuck: 0 });
   particles.length = 0; floats.length = 0; toastsEl.innerHTML = '';
   renderSkills();
 }
@@ -226,7 +243,8 @@ const DIR_KEYS = { arrowleft: 'L', a: 'L', arrowright: 'R', d: 'R', arrowup: 'U'
 const ARROW = { L: '←', R: '→', U: '↑', D: '↓' };
 
 addEventListener('keydown', e => {
-  if (e.target && e.target.tagName === 'INPUT') { if (e.key === 'Enter') startGame(); return; }
+  if (e.target && e.target.tagName === 'INPUT') { if (e.key === 'Enter') startGame(); return; }   // auch Bildschirmtastaturen
+  setTouch(false);
   const k = e.key.toLowerCase();
   if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) e.preventDefault();
   const first = !keys[k];
@@ -258,6 +276,89 @@ function onKey(k) {
     case 'end': if (k === 'enter') showTitle(); break;
   }
 }
+
+// ---- Touch & Maus ---------------------------------------------------
+let touchMode = matchMedia('(pointer: coarse)').matches;
+function setTouch(on) {
+  if (on === touchMode) return;
+  touchMode = on; document.body.classList.toggle('touch', on);
+}
+document.body.classList.toggle('touch', touchMode);
+addEventListener('pointerdown', e => { if (e.pointerType === 'touch' || e.pointerType === 'pen') setTouch(true); else if (e.pointerType === 'mouse') setTouch(false); audioInit(); }, true);
+addEventListener('contextmenu', e => { if (e.target.tagName !== 'INPUT') e.preventDefault(); });
+
+// Bildschirmkoordinaten → Spielkoordinaten
+function toGame(cx, cy) {
+  const r = cv.getBoundingClientRect();
+  return { x: (cx - r.left) / r.width * W, y: (cy - r.top) / r.height * H };
+}
+// Antippen/Anklicken der Halle: zum Ziel laufen, bei Objekten dort automatisch interagieren
+function tapAt(cx, cy) {
+  if (!G) return;
+  if (G.mode === 'online') pauseOnline();
+  if (G.mode !== 'walk') return;
+  const p = toGame(cx, cy);
+  if (p.x < 0 || p.y < 0 || p.x > W || p.y > H) return;
+  let hit = null, hd = 1e9;
+  for (const it of interactables()) {
+    const o = it.o;
+    if (p.x < o.x - 14 || p.x > o.x + o.w + 14 || p.y < o.y - 40 || p.y > o.y + o.h + 14) continue;
+    const d = distRect(p.x, p.y, o);
+    if (d < hd) { hd = d; hit = it; }
+  }
+  const r = player.r;
+  player.target = { x: clamp(p.x, 22 + r, W - 10 - r), y: clamp(p.y, 122 + r, H - 8 - r), o: hit ? hit.o : null, t: 0 };
+  player.stuck = 0;
+}
+cv.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse' && e.button === 0) tapAt(e.clientX, e.clientY); });
+
+// Virtueller Joystick: Daumen irgendwo auf die Halle legen und ziehen. Kurzes Antippen = tapAt().
+const joy = { id: null, x0: 0, y0: 0, x: 0, y: 0, t0: 0, moved: false };
+const joyEl = $('#joy'), knobEl = $('#joy-knob'), touchEl = $('#touch'), actBtn = $('#t-act');
+const JOY_R = 56;
+touchEl.addEventListener('pointerdown', e => {
+  if (e.target.closest('button') || joy.id !== null) return;
+  e.preventDefault();
+  joy.id = e.pointerId; joy.x0 = e.clientX; joy.y0 = e.clientY; joy.x = joy.y = 0; joy.t0 = performance.now(); joy.moved = false;
+  try { touchEl.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+});
+touchEl.addEventListener('pointermove', e => {
+  if (e.pointerId !== joy.id) return;
+  const dx = e.clientX - joy.x0, dy = e.clientY - joy.y0, d = Math.hypot(dx, dy);
+  if (!joy.moved && d > 12) {
+    joy.moved = true;
+    joyEl.classList.add('active'); joyEl.style.left = joy.x0 + 'px'; joyEl.style.top = joy.y0 + 'px';
+    if (G && G.mode === 'online') pauseOnline();
+  }
+  if (!joy.moved) return;
+  const k = Math.min(1, d / JOY_R), mag = k < 0.2 ? 0 : (k - 0.2) / 0.8;
+  joy.x = d ? dx / d * mag : 0; joy.y = d ? dy / d * mag : 0;
+  knobEl.style.transform = `translate(${d ? dx / d * Math.min(d, JOY_R) : 0}px, ${d ? dy / d * Math.min(d, JOY_R) : 0}px)`;
+});
+function joyEnd(e) {
+  if (e.pointerId !== joy.id) return;
+  if (!joy.moved && e.type === 'pointerup' && performance.now() - joy.t0 < 400) tapAt(e.clientX, e.clientY);
+  joy.id = null; joy.x = joy.y = 0; joy.moved = false;
+  joyEl.classList.remove('active'); joyEl.style.left = joyEl.style.top = ''; knobEl.style.transform = '';
+}
+touchEl.addEventListener('pointerup', joyEnd);
+touchEl.addEventListener('pointercancel', joyEnd);
+actBtn.addEventListener('pointerdown', e => { e.preventDefault(); onKey('e'); });
+$('#t-pause').addEventListener('pointerdown', e => { e.preventDefault(); if (G) setPause(G.mode === 'walk'); });
+
+// Hochformat auf Touch-Geräten: Spiel pausieren (Hinweis "Gerät drehen" kommt per CSS)
+const portraitMq = matchMedia('(orientation: portrait) and (pointer: coarse)');
+const checkPortrait = () => { if (portraitMq.matches && G && G.mode === 'walk') setPause(true); };
+portraitMq.addEventListener ? portraitMq.addEventListener('change', checkPortrait) : portraitMq.addListener(checkPortrait);
+document.addEventListener('visibilitychange', () => { if (document.hidden && G && G.mode === 'walk') setPause(true); });
+
+// Minispiele per Touch: Buttons reagieren schon beim Antippen (pointerdown), nicht erst beim Loslassen
+modal.addEventListener('pointerdown', e => {
+  const b = e.target.closest('[data-mg]');
+  if (!b) return;
+  e.preventDefault();
+  mgKey(b.dataset.mg);
+});
 
 modal.addEventListener('click', e => {
   const b = e.target.closest('[data-a]');
@@ -294,17 +395,36 @@ function blocked(x, y) {
   return OBSTACLES.some(o => distRect(x, y, o) < r);
 }
 function movePlayer(dt) {
-  let dx = 0, dy = 0;
+  let dx = 0, dy = 0, mag = 1;
   if (keys.arrowleft || keys.a) dx--; if (keys.arrowright || keys.d) dx++;
   if (keys.arrowup || keys.w) dy--; if (keys.arrowdown || keys.s) dy++;
+  if (!dx && !dy && (joy.x || joy.y)) { dx = joy.x; dy = joy.y; mag = Math.min(1, Math.hypot(dx, dy)); }
+  if (dx || dy) player.target = null;            // manuelle Steuerung hat Vorrang
+  else if (player.target) {
+    const tg = player.target;
+    if (tg.o && distRect(player.x, player.y, tg.o) < 40) {
+      player.target = null; player.moving = false;
+      const it = interactables().find(i => i.o === tg.o);
+      if (it) { SFX.click(); it.act(); }
+      return;
+    }
+    const ddx = tg.x - player.x, ddy = tg.y - player.y, d = Math.hypot(ddx, ddy);
+    if (d < 6) player.target = null; else { dx = ddx; dy = ddy; }
+  }
   player.moving = !!(dx || dy);
   if (!player.moving) return;
-  const len = Math.hypot(dx, dy), sp = 230 * (G.coffee > 0 ? 1.4 : 1) * dt;
+  const len = Math.hypot(dx, dy), sp = 230 * (G.coffee > 0 ? 1.4 : 1) * dt * mag;
   dx = dx / len * sp; dy = dy / len * sp;
-  if (dx) player.face = Math.sign(dx);
+  if (Math.abs(dx) > 0.05) player.face = Math.sign(dx);
+  const ox = player.x, oy = player.y;
   if (!blocked(player.x + dx, player.y)) player.x += dx;
   if (!blocked(player.x, player.y + dy)) player.y += dy;
   player.walk += dt;
+  // Automatisches Laufen abbrechen, wenn ein Hindernis den Weg versperrt
+  if (player.target) {
+    player.stuck = Math.hypot(player.x - ox, player.y - oy) < sp * 0.3 ? player.stuck + dt : 0;
+    if (player.stuck > 0.3) { player.target = null; player.moving = false; }
+  }
 }
 
 function interactables() {
@@ -337,12 +457,12 @@ function drinkCoffee() {
 function setPause(on) {
   if (on) {
     if (G.mode !== 'walk') return;
-    G.mode = 'paused';
+    G.mode = 'paused'; player.target = null;
     screenEl.className = '';
     screenEl.style.background = 'rgba(5,8,12,.75)';
     screenEl.innerHTML = `<div class="panel" style="text-align:center;width:420px">
       <h2>Pause</h2><p class="small">Kurze Brotzeit. Die Anlage wartet.</p>
-      <div class="btns" style="justify-content:center"><button class="primary" data-a="resume">Weiter <kbd>P</kbd></button>
+      <div class="btns" style="justify-content:center"><button class="primary" data-a="resume">Weiter ▶<kbd>P</kbd></button>
       <button data-a="title">Zum Titelbildschirm</button></div></div>`;
   } else if (G.mode === 'paused') {
     G.mode = 'walk'; screenEl.className = 'hidden'; screenEl.style.background = '';
@@ -443,14 +563,19 @@ function startMinigame(m) {
     modal.innerHTML = `<div class="panel mg" style="--c:${t.color}">${head}
       <div class="bar" id="mg-bar"><div class="grid"></div><div class="zone" id="mg-zone"></div><div class="cursor" id="mg-cur"></div></div>
       <div class="hits" id="mg-hits"></div>
-      <p class="help"><kbd>Leertaste</kbd> drücken, wenn der Cursor im grünen Bereich ist · <kbd>Esc</kbd> abbrechen</p></div>`;
+      <div class="mgtouch t-only"><button class="primary hit" data-mg="e">⚡ Jetzt!</button><button data-a="close">Abbrechen</button></div>
+      <p class="help"><span class="k-only"><kbd>Leertaste</kbd> drücken, wenn der Cursor im grünen Bereich ist · <kbd>Esc</kbd> abbrechen</span>
+        <span class="t-only">„Jetzt!“ antippen, wenn der Cursor im grünen Bereich ist</span></p></div>`;
   } else {
     const len = clamp(3 + 2 * s - L, 3, 9);
     G.mg = { type: 'seq', m, len, seq: newSeq(len), idx: 0, t: 0, tmax: len * (0.85 + 0.22 * L) + 1, stun: 0 };
     modal.innerHTML = `<div class="panel mg" style="--c:${t.color}">${head}
       <div class="seq" id="mg-seq"></div>
       <div class="timer"><div id="mg-timer"></div></div>
-      <p class="help">Folge mit <kbd>Pfeiltasten</kbd> oder <kbd>WASD</kbd> eingeben · <kbd>Esc</kbd> abbrechen</p></div>`;
+      <div class="mgtouch t-only">${['arrowleft', 'arrowup', 'arrowdown', 'arrowright'].map(k => `<button data-mg="${k}">${ARROW[DIR_KEYS[k]]}</button>`).join('')}
+        <button data-a="close">Abbrechen</button></div>
+      <p class="help"><span class="k-only">Folge mit <kbd>Pfeiltasten</kbd> oder <kbd>WASD</kbd> eingeben · <kbd>Esc</kbd> abbrechen</span>
+        <span class="t-only">Folge mit den Pfeil-Buttons eingeben</span></p></div>`;
   }
   G.mg.el = { bar: $('#mg-bar'), zone: $('#mg-zone'), cur: $('#mg-cur'), hits: $('#mg-hits'), seq: $('#mg-seq'), timer: $('#mg-timer') };
   renderMinigame(true);
@@ -553,13 +678,16 @@ function renderAcademy() {
     const T = TECH[t], L = G.skills[t], P = presenceInfo(t);
     const oc = onlineCost(t);
     const done = L >= MAX;
-    const onBtn = done ? '<button disabled>✔ Gemeistert</button>'
-      : `<button data-a="online" data-t="${t}" ${G.money >= oc ? '' : 'disabled'}>💻 Online +1 · €${oc} · ${onlineDur(t)} s</button>`;
-    const prBtn = done ? '<button disabled>✔ Gemeistert</button>'
-      : `<button class="primary" data-a="presence" data-t="${t}" ${G.money >= P.cost ? '' : 'disabled'}>🏫 Präsenz +${P.gain} · €${P.cost}</button>`;
+    const doneBtn = '<button disabled><b>✔ Gemeistert</b><small>Stufe 5 erreicht</small></button>';
+    const onBtn = done ? doneBtn
+      : `<button data-a="online" data-t="${t}" ${G.money >= oc ? '' : 'disabled'}><b>💻 Online +1</b><small>€${oc} · ${onlineDur(t)} s</small></button>`;
+    const prBtn = done ? doneBtn
+      : `<button class="primary" data-a="presence" data-t="${t}" ${G.money >= P.cost ? '' : 'disabled'}><b>🏫 Präsenz +${P.gain}</b><small>€${P.cost}</small></button>`;
+    // Name, Stufe und (optional) Praxisrabatt teilen sich eine Zelle mit fester Höhe –
+    // so verschiebt ein eingeblendeter Rabatt weder die Spalten noch die Buttons.
     return `<div class="trow" style="--c:${T.color}">
-      <span class="tn">${T.name}</span>${pipsHTML(L, T.color)}
-      <span class="disc">${G.discount[t] > 0 && !done ? `Praxisrabatt −${Math.round(G.discount[t] * 100)} %` : ''}</span>
+      <div class="tinfo"><span class="tn" title="${T.name}">${T.name}</span>${pipsHTML(L, T.color)}
+        <span class="disc">${G.discount[t] > 0 && !done ? `Praxisrabatt −${Math.round(G.discount[t] * 100)} %` : ''}</span></div>
       ${onBtn}${prBtn}</div>`;
   }).join('');
   modal.innerHTML = `<div class="panel academy">
@@ -586,7 +714,7 @@ function startOnline(t) {
   G.stats.online++;
   closeModal();
   resumeOnline();
-  toast(`💻 Online-Kurs <b>${TECH[t].name}</b> gestartet. <kbd>E</kbd> pausiert den Kurs.`, 'tip', 3.5);
+  toast(`💻 Online-Kurs <b>${TECH[t].name}</b> gestartet. <span class="k-only"><kbd>E</kbd> pausiert den Kurs.</span><span class="t-only">✋ oder Laufen pausiert den Kurs.</span>`, 'tip', 3.5);
 }
 function resumeOnline() {
   G.mode = 'online';
@@ -775,7 +903,7 @@ function renderSkills() {
     else if (G.discount[t] > 0) sub = `−${Math.round(G.discount[t] * 100)} %`;
     const prog = G.online && G.online.tech === t ? `<div class="prog" style="width:${100 * G.online.p / G.online.dur}%"></div>` : '';
     return `<div class="skill${L >= MAX ? ' max' : ''}" style="--c:${T.color}">
-      <div class="n">${T.name}<span>${L}/${MAX}</span></div>${pipsHTML(L, T.color)}<span class="sub">${sub}</span>${prog}</div>`;
+      <div class="n"><b class="nm-l">${T.name}</b><b class="nm-s">${T.short}</b><span>${L}/${MAX}</span></div>${pipsHTML(L, T.color)}<span class="sub">${sub}</span>${prog}</div>`;
   }).join('');
 }
 function renderHud() {
@@ -1235,13 +1363,21 @@ function drawPrompt() {
   if (G.mode !== 'walk') return;
   const n = nearest(); if (!n) return;
   const o = n.o, label = n.label;
-  ctx.font = '600 13px "Segoe UI", system-ui, sans-serif';
-  const tw = ctx.measureText(label).width + 44;
-  const x = clamp(o.x + o.w / 2, tw / 2 + 4, W - tw / 2 - 4), y = Math.max(o.y - 50, 130);
-  rr(x - tw / 2, y - 14, tw, 28, 6, '#0d1520ee', '#ffd000', 1.5);
-  rr(x - tw / 2 + 6, y - 9, 20, 18, 3, '#ffd000');
-  text('E', x - tw / 2 + 16, y, 12, '#000', 'center', '800');
-  text(label, x + 12, y, 13, '#fff');
+  // Auf kleinen Displays (Kompaktmodus) größer zeichnen, damit der Hinweis lesbar bleibt
+  const k = document.body.classList.contains('compact') ? 1.6 : 1, fs = 13 * k, bh = 28 * k, kw = 20 * k;
+  ctx.font = `600 ${fs}px "Segoe UI", system-ui, sans-serif`;
+  const tw = ctx.measureText(label).width + kw + 24 * k;
+  const x = clamp(o.x + o.w / 2, tw / 2 + 4, W - tw / 2 - 4), y = Math.max(o.y - 50 * k, 130 + bh / 2);
+  rr(x - tw / 2, y - bh / 2, tw, bh, 6, '#0d1520ee', '#ffd000', 1.5);
+  rr(x - tw / 2 + 6 * k, y - 9 * k, kw, 18 * k, 3, '#ffd000');
+  text(touchMode ? '✋' : 'E', x - tw / 2 + 6 * k + kw / 2, y, 12 * k, '#000', 'center', '800');
+  text(label, x + (kw + 4 * k) / 2, y, fs, '#fff');
+}
+function drawTarget(t) {
+  const tg = player.target; if (!tg || G.mode !== 'walk') return;
+  const r = 8 + 3 * Math.sin(t * 8);
+  ctx.save(); ctx.strokeStyle = '#ffd000'; ctx.lineWidth = 2; ctx.globalAlpha = .8;
+  ctx.beginPath(); ctx.ellipse(tg.x, tg.y + 14, r * 1.6, r * .7, 0, 0, 7); ctx.stroke(); ctx.restore();
 }
 
 function drawStatusBanner(t) {
@@ -1261,6 +1397,7 @@ function draw(t) {
   for (const m of MACHINES) drawMachine(m, t);
   drawTerminal(t); drawCoffee(t); drawBoard(); drawBoss(t);
   drawStatusBanner(t);
+  drawTarget(t);
   // Spieler hinter/vor Objekten: einfache Tiefensortierung genügt hier
   drawPlayer(t);
   drawFx();
@@ -1287,13 +1424,18 @@ function showTitle() {
       in <b>Präsenz</b>. Je höher dein Skill, desto schneller die Reparatur und desto seltener die Ausfälle.
       Ziel: <b>Alle sechs Technologien auf Stufe 5</b> – dann bist du Meister-Instandhalter.
     </div>
-    <div class="controls">
-      <div><b>Bewegen</b>Pfeiltasten / WASD</div>
+    <div class="controls k-only">
+      <div><b>Bewegen</b>Pfeiltasten / WASD oder Klick</div>
       <div><b>Interagieren</b>E oder Leertaste</div>
       <div><b>Pause · Ton</b>P · M</div>
     </div>
+    <div class="controls t-only">
+      <div><b>Bewegen</b>Daumen auf die Halle legen und ziehen</div>
+      <div><b>Interagieren</b>Objekt antippen oder ✋</div>
+      <div><b>Pause</b>❚❚ oben rechts</div>
+    </div>
     <div class="startrow">
-      <input id="pname" maxlength="24" value="${esc(playerName)}" placeholder="Dein Name" aria-label="Name des Instandhalters">
+      <input id="pname" maxlength="24" enterkeyhint="go" autocomplete="off" value="${esc(playerName)}" placeholder="Dein Name" aria-label="Name des Instandhalters">
       <button class="primary" data-a="start">Schicht beginnen ▶</button>
     </div>
     ${best ? `<div class="best">Bestzeit zum Meister: ${fmtTime(+best)}</div>` : ''}
@@ -1303,12 +1445,23 @@ function showTitle() {
 
 function startGame() {
   audioInit();
+  if (touchMode) goFullscreen();
   const inp = $('#pname');
   if (inp) { playerName = inp.value.trim() || 'Instandhalter'; store.set('frostwerk-name', playerName); inp.blur(); }
   screenEl.className = 'hidden'; screenEl.innerHTML = '';
   newGame();
   renderHud();
   toast('Schichtbeginn! Halte die Linie am Laufen. Das <span class="g">GROLLMUS</span> Akademie-Terminal steht im Büro links unten.', 'tip', 6);
+}
+
+// Auf Mobilgeräten Vollbild + Querformat anfordern (wo unterstützt; iOS-Safari ignoriert das still)
+function goFullscreen() {
+  const el = document.documentElement, rq = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (!rq || document.fullscreenElement || document.webkitFullscreenElement) return;
+  try {
+    const p = rq.call(el, { navigationUI: 'hide' });
+    if (p && p.then) p.then(() => screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape').catch(() => {})).catch(() => {});
+  } catch { /* ignore */ }
 }
 
 function showEnd() {
@@ -1366,8 +1519,22 @@ function frame(now) {
   const t = now / 1000;
   if (G) { update(dt); draw(t); }
   else drawIdle(t);
+  syncTouchUi();
   requestAnimationFrame(frame);
 }
+// Touch-Steuerung nur zeigen, wenn sie gebraucht wird (über data-mode + CSS)
+let lastMode = '', lastReady = null;
+function syncTouchUi() {
+  const mode = G ? G.mode : 'title';
+  if (mode !== lastMode) {
+    lastMode = mode; document.body.dataset.mode = mode;
+    actBtn.textContent = mode === 'online' ? '⏸' : '✋';
+    if (mode !== 'walk' && mode !== 'online' && joy.id !== null) joyEnd({ pointerId: joy.id, type: 'cancel' });
+  }
+  const ready = mode === 'walk' && !!nearest();
+  if (ready !== lastReady) { lastReady = ready; actBtn.classList.toggle('ready', ready); }
+}
+
 // Hintergrund-Animation hinter dem Titelbild
 const idle = { lineOk: true, flow: 0, mode: 'idle', coffee: 0, online: null };
 function drawIdle(t) {

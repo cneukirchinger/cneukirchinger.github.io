@@ -2,7 +2,10 @@
 <html lang="de">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#0d1117">
   <title>Frostwerk – Der Instandhalter</title>
   <meta name="description" content="Ein Instandhalter-Abenteuer in der Eisfabrik – präsentiert von Grollmus.">
   <link rel="stylesheet" href="style.css">
@@ -23,10 +26,23 @@
     </div>
 
     <div id="skills"></div>
+  </div>
+
+  <!-- Touch-Steuerung (nur auf Touch-Geräten sichtbar) -->
+  <div id="touch">
+    <div id="joy"><div id="joy-knob"></div></div>
+    <button id="t-pause" aria-label="Pause">❚❚</button>
+    <button id="t-act" aria-label="Interagieren">✋</button>
+  </div>
+
+  <!-- Dialoge & Bildschirme: eigene Ebene, damit sie auf kleinen Displays lesbar bleiben -->
+  <div id="ui"><div id="uiz">
     <div id="toasts"></div>
     <div id="modal" class="hidden"></div>
     <div id="screen"></div>
-  </div>
+  </div></div>
+
+  <div id="rotate"><div><div class="ri">📱</div>Bitte das Gerät quer halten</div></div>
   <script src="game.js"></script>
 </body>
 </html>
